@@ -570,20 +570,24 @@ function handleActionCommand(event) {
 
 // Populate dropdowns
 async function populateDropdowns(renderActions = true) {
-    const result = await fetch('/api/settings/get', {
-        method: 'POST',
-        headers: getContext().getRequestHeaders(),
-        body: JSON.stringify({}),
-    });
+    try {
+        const result = await fetch('/api/settings/get', {
+            method: 'POST',
+            headers: getContext().getRequestHeaders(),
+            body: JSON.stringify({}),
+        });
 
-    if (result.ok) {
-        const data = await result.json();
-        availablePresetNames = Array.isArray(data.openai_setting_names) ? data.openai_setting_names : [];
-        if (renderActions) {
-            renderActionSettings();
-        } else {
-            refreshPresetSelects();
+        if (result.ok) {
+            const data = await result.json();
+            availablePresetNames = Array.isArray(data.openai_setting_names) ? data.openai_setting_names : [];
+            if (renderActions) {
+                renderActionSettings();
+            } else {
+                refreshPresetSelects();
+            }
         }
+    } catch (error) {
+        console.warn('[Rewrite Extension] Failed to load Chat Completion presets.', error);
     }
 }
 
@@ -628,8 +632,8 @@ jQuery(async () => {
     const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html`);
     $("#extensions_settings2").append(settingsHtml);
 
-    // Populate dropdowns
-    await populateDropdowns();
+    // Initialize local settings before any optional network requests.
+    loadSettings();
 
     // Add event listeners
     $("#highlight_duration").on("change", saveSettings);
@@ -655,9 +659,6 @@ jQuery(async () => {
         saveSettings();
     });
 
-    // Load settings
-    loadSettings();
-
     // Add event listener for SETTINGS_UPDATED
     eventSource.on(event_types.SETTINGS_UPDATED, async () => {
         await populateDropdowns(false);
@@ -672,6 +673,7 @@ jQuery(async () => {
         removeUndoButton(editedMesId);
     });
 
+    await populateDropdowns(false);
     updateModelSettings();
 });
 
