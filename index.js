@@ -1,4 +1,4 @@
-import { sendOpenAIRequest, oai_settings } from "../../../openai.js";
+import { sendOpenAIRequest, oai_settings, model_list } from "../../../openai.js";
 import { extractAllWords } from "../../../utils.js";
 import { getTokenCount } from "../../../tokenizers.js";
 import { getNovelGenerationData, generateNovelWithStreaming, nai_settings } from "../../../nai-settings.js";
@@ -21,6 +21,35 @@ import { getRegexedString, regex_placement } from '../../regex/engine.js'; // Im
 
 const extensionName = "rewrite-extension";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+
+const chatCompletionModelSources = {
+    openai: { setting: 'openai_model', selector: '#model_openai_select', label: 'OpenAI' },
+    claude: { setting: 'claude_model', selector: '#model_claude_select', label: 'Claude' },
+    openrouter: { setting: 'openrouter_model', selector: '#model_openrouter_select', label: 'OpenRouter' },
+    ai21: { setting: 'ai21_model', selector: '#model_ai21_select', label: 'AI21' },
+    makersuite: { setting: 'google_model', selector: '#model_google_select', label: 'Google AI Studio' },
+    vertexai: { setting: 'vertexai_model', selector: '#model_vertexai_select', label: 'Vertex AI' },
+    mistralai: { setting: 'mistralai_model', selector: '#model_mistralai_select', label: 'Mistral AI' },
+    custom: { setting: 'custom_model', selector: '#model_custom_select', label: 'Custom API' },
+    cohere: { setting: 'cohere_model', selector: '#model_cohere_select', label: 'Cohere' },
+    perplexity: { setting: 'perplexity_model', selector: '#model_perplexity_select', label: 'Perplexity' },
+    groq: { setting: 'groq_model', selector: '#model_groq_select', label: 'Groq' },
+    electronhub: { setting: 'electronhub_model', selector: '#model_electronhub_select', label: 'ElectronHub' },
+    chutes: { setting: 'chutes_model', selector: '#model_chutes_select', label: 'Chutes' },
+    nanogpt: { setting: 'nanogpt_model', selector: '#model_nanogpt_select', label: 'NanoGPT' },
+    deepseek: { setting: 'deepseek_model', selector: '#model_deepseek_select', label: 'DeepSeek' },
+    aimlapi: { setting: 'aimlapi_model', selector: '#model_aimlapi_select', label: 'AI/ML API' },
+    xai: { setting: 'xai_model', selector: '#model_xai_select', label: 'xAI' },
+    pollinations: { setting: 'pollinations_model', selector: '#model_pollinations_select', label: 'Pollinations' },
+    moonshot: { setting: 'moonshot_model', selector: '#model_moonshot_select', label: 'Moonshot' },
+    fireworks: { setting: 'fireworks_model', selector: '#model_fireworks_select', label: 'Fireworks AI' },
+    cometapi: { setting: 'cometapi_model', selector: '#model_cometapi_select', label: 'CometAPI' },
+    azure_openai: { setting: 'azure_openai_model', selector: '#azure_openai_model', label: 'Azure OpenAI' },
+    zai: { setting: 'zai_model', selector: '#model_zai_select', label: 'Z.AI' },
+    siliconflow: { setting: 'siliconflow_model', selector: '#model_siliconflow_select', label: 'SiliconFlow' },
+    workers_ai: { setting: 'workers_ai_model', selector: '#model_workers_ai_select', label: 'Workers AI' },
+    minimax: { setting: 'minimax_model', selector: '#model_minimax_select', label: 'MiniMax' },
+};
 
 const undo_steps = 15;
 
@@ -364,6 +393,123 @@ async function getCustomInstructionsFromPopup() {
         return null;
     } finally {
     }
+}
+
+function getChatCompletionModelOptions(source, presetSettings) {
+    const sourceConfig = chatCompletionModelSources[source];
+    if (!sourceConfig) {
+        return null;
+    }
+
+    const models = new Map();
+    const addModel = (value, label = value) => {
+        const modelId = String(value ?? '').trim();
+        if (!modelId) {
+            return;
+        }
+
+        const modelLabel = String(label ?? modelId).trim() || modelId;
+        if (!models.has(modelId) || models.get(modelId) === modelId) {
+            models.set(modelId, modelLabel);
+        }
+    };
+
+    const presetModel = presetSettings[sourceConfig.setting];
+    addModel(presetModel);
+
+    const modelSelector = document.querySelector(sourceConfig.selector);
+    let selectorModelCount = 0;
+    if (modelSelector instanceof HTMLSelectElement) {
+        for (const option of modelSelector.options) {
+            if (!option.disabled && String(option.value).trim()) {
+                addModel(option.value, option.textContent);
+                selectorModelCount++;
+            }
+        }
+    }
+
+    // The global list only belongs to the active source and is a fallback for an empty selector.
+    if (selectorModelCount === 0 && oai_settings.chat_completion_source === source && Array.isArray(model_list)) {
+        for (const model of model_list) {
+            const modelId = model?.id;
+            const modelLabel = model?.name && model.name !== modelId
+                ? `${model.name} (${modelId})`
+                : modelId;
+            addModel(modelId, modelLabel);
+        }
+    }
+
+    return {
+        ...sourceConfig,
+        presetModel: String(presetModel ?? '').trim(),
+        models,
+    };
+}
+
+async function selectChatCompletionModel(presetSettings, presetName) {
+    const source = presetSettings.chat_completion_source;
+    const modelOptions = getChatCompletionModelOptions(source, presetSettings);
+
+    if (!modelOptions) {
+        console.error(`[Rewrite Extension] Unsupported chat completion source: ${source}`);
+        toastr.error(`The preset uses an unsupported source: ${source}`, 'Model Selection');
+        return null;
+    }
+
+    if (modelOptions.models.size === 0) {
+        console.error(`[Rewrite Extension] No models available for source: ${source}`);
+        toastr.error(`No models are available for ${modelOptions.label}.`, 'Model Selection');
+        return null;
+    }
+
+    const content = document.createElement('div');
+    content.className = 'rewrite-model-picker';
+
+    const heading = document.createElement('h3');
+    heading.textContent = `Select ${modelOptions.label} model`;
+
+    const description = document.createElement('p');
+    description.textContent = `Preset: ${presetName}`;
+
+    const select = document.createElement('select');
+    select.className = 'text_pole';
+    select.setAttribute('aria-label', `${modelOptions.label} model`);
+
+    for (const [modelId, modelLabel] of modelOptions.models) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.textContent = modelLabel;
+        select.appendChild(option);
+    }
+
+    if (modelOptions.presetModel) {
+        select.value = modelOptions.presetModel;
+    }
+
+    content.append(heading, description, select);
+
+    const context = getContext();
+    let result;
+    if (typeof context.callGenericPopup === 'function' && context.POPUP_TYPE) {
+        result = await context.callGenericPopup(content, context.POPUP_TYPE.TEXT, '', {
+            okButton: 'Use model',
+            cancelButton: 'Cancel',
+        });
+    } else {
+        result = await context.callPopup($(content), 'text', '', {
+            okButton: 'Use model',
+            cancelButton: 'Cancel',
+        });
+    }
+
+    if (!result) {
+        return null;
+    }
+
+    return {
+        setting: modelOptions.setting,
+        model: select.value,
+    };
 }
 
 async function handleMenuItemClick(e) {
@@ -859,6 +1005,12 @@ async function handleChatCompletionRewrite(mesId, swipeId, option, customInstruc
         console.error('Error parsing preset settings:', error);
         return;
     }
+
+    const selectedModel = await selectChatCompletionModel(selectedPresetSettings, selectedPreset);
+    if (!selectedModel) {
+        return;
+    }
+    selectedPresetSettings[selectedModel.setting] = selectedModel.model;
 
     // Extension streaming overrides preset streaming
     selectedPresetSettings.stream_openai = extension_settings[extensionName].useStreaming;
