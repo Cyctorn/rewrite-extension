@@ -13,7 +13,7 @@ The Rewrite Extension enhances the chat experience in SillyTavern by allowing us
 - Custom {{targetmessage}} macro that contains the full targeted message
 - Custom {{rewritecount}} macro that returns a numeric (39) count of words selected
 - Configurable selection-menu buttons with custom names, order, prompts, presets, token limits, and visibility
-- Optional per-button custom-instruction prompt and delete-selection behavior
+- Optional per-button custom-instruction and token-multiplier prompts, plus delete-selection behavior
 - Convenient undo button
 - Real-time streaming of rewritten text
 - Temporary highlighting of modified text for easy identification

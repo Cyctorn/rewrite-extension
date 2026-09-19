@@ -21,7 +21,7 @@ import { getRegexedString, regex_placement } from '../../regex/engine.js'; // Im
 
 const extensionName = "rewrite-extension";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-const extensionVersion = '1.4.2';
+const extensionVersion = '1.5.0';
 const logPrefix = `[Rewrite Extension ${extensionVersion}]`;
 
 console.info(`${logPrefix} Module loaded from ${import.meta.url}`);
@@ -103,7 +103,7 @@ Sure, here is only the rewritten text without any comments: `,
     applyRegexOnRewrite: true, // New setting to control regex application
 };
 
-const actionsVersion = 1;
+const actionsVersion = 2;
 
 const legacyActionDefinitions = [
     {
@@ -172,6 +172,7 @@ function getDefaultAction(overrides = {}) {
         kind: 'generate',
         visible: true,
         askForInstructions: false,
+        askForTokenMultiplier: false,
         preset: availablePresetNames[0] || '',
         prompt: defaultSettings.textRewritePrompt,
         tokens: defaultSettings.rewriteTokens,
@@ -212,6 +213,9 @@ function normalizeAction(action, usedIds) {
         askForInstructions: typeof action?.askForInstructions === 'boolean'
             ? action.askForInstructions
             : fallback.askForInstructions,
+        askForTokenMultiplier: typeof action?.askForTokenMultiplier === 'boolean'
+            ? action.askForTokenMultiplier
+            : fallback.askForTokenMultiplier,
         preset: typeof action?.preset === 'string' ? action.preset : fallback.preset,
         prompt: typeof action?.prompt === 'string' ? action.prompt : fallback.prompt,
         tokens: Number.isFinite(Number(action?.tokens)) ? Number(action.tokens) : fallback.tokens,
@@ -470,8 +474,20 @@ function renderActionSettings() {
         instructionsLabel.htmlFor = instructionsInput.id;
         instructionsLabel.append(instructionsInput, document.createTextNode(' Ask for instructions when clicked'));
         const instructionsRow = document.createElement('div');
-        instructionsRow.className = 'rewrite-action-setting rewrite-action-instructions';
+        instructionsRow.className = 'rewrite-action-setting rewrite-action-instructions action-generate-setting';
         instructionsRow.appendChild(instructionsLabel);
+
+        const tokenMultiplierPromptInput = createActionControl(action, 'askForTokenMultiplier', 'input', {
+            type: 'checkbox',
+            className: 'checkbox',
+        });
+        tokenMultiplierPromptInput.checked = action.askForTokenMultiplier;
+        const tokenMultiplierPromptLabel = document.createElement('label');
+        tokenMultiplierPromptLabel.htmlFor = tokenMultiplierPromptInput.id;
+        tokenMultiplierPromptLabel.append(tokenMultiplierPromptInput, document.createTextNode(' Ask for token multiplier when clicked'));
+        const tokenMultiplierPromptRow = document.createElement('div');
+        tokenMultiplierPromptRow.className = 'rewrite-action-setting rewrite-action-instructions action-generate-setting';
+        tokenMultiplierPromptRow.appendChild(tokenMultiplierPromptLabel);
 
         const tokensInput = createActionControl(action, 'tokens', 'input', {
             type: 'number',
@@ -501,6 +517,7 @@ function renderActionSettings() {
             createActionSettingRow('Chat Completion Preset', presetSelect, 'action-chat-setting action-generate-setting'),
             createActionSettingRow('Text Completion Prompt', promptInput, 'action-text-setting action-generate-setting'),
             instructionsRow,
+            tokenMultiplierPromptRow,
             createActionSettingRow('Max Tokens', tokensInput, 'action-static-token action-generate-setting'),
             createActionSettingRow('Token Difference', tokensAddInput, 'action-additive-token action-generate-setting'),
             createActionSettingRow('Token Multiplier', tokensMultInput, 'action-multiplicative-token action-generate-setting'),
@@ -527,16 +544,16 @@ function renderActionSettings() {
         container.appendChild(card);
     });
 
+    updateActionBehaviorSettings();
     updateModelSettings();
     updateTokenSettings();
-    updateActionBehaviorSettings();
 }
 
 function updateActionBehaviorSettings() {
     document.querySelectorAll('.rewrite-action-card').forEach(card => {
         const action = getAction(card.dataset.actionId);
         const isGenerateAction = action?.kind === 'generate';
-        card.querySelectorAll('.rewrite-action-instructions').forEach(element => {
+        card.querySelectorAll('.action-generate-setting').forEach(element => {
             element.style.display = isGenerateAction ? '' : 'none';
         });
     });
@@ -839,6 +856,31 @@ async function getCustomInstructionsFromPopup(actionName) {
     }
 }
 
+async function getTokenMultiplierFromPopup(actionName, defaultMultiplier) {
+    const { callPopup } = getContext();
+
+    while (true) {
+        const input = await callPopup(
+            `Enter the output token multiplier for ${actionName}:`,
+            'input',
+            String(defaultMultiplier),
+        );
+
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        if (input === null || input === false || String(input).trim() === '') {
+            return null;
+        }
+
+        const multiplier = Number(input);
+        if (Number.isFinite(multiplier) && multiplier > 0) {
+            return multiplier;
+        }
+
+        toastr.error('Enter a token multiplier greater than 0.', 'Invalid Token Multiplier');
+    }
+}
+
 function getChatCompletionModelOptions(source, presetSettings) {
     const sourceConfig = chatCompletionModelSources[source];
     if (!sourceConfig) {
@@ -988,29 +1030,31 @@ async function handleMenuItemClick(e) {
                 if (action.kind === 'delete') {
                     // Pass the initially captured range to handleDeleteSelection
                     await handleDeleteSelection(mesId, swipeId, initialRange);
-                } else if (action.askForInstructions) {
-                    const customInstructions = await getCustomInstructionsFromPopup(action.name.trim() || 'this button');
-                    if (customInstructions !== null && customInstructions.trim() !== '') { // Proceed only if user entered text and didn't cancel
-                        // Get selectionInfo *after* await and *before* handleRewrite
-                        // Pass the initially captured range
-                        const selectionInfo = getSelectedTextInfo(mesId, mesTextElement, initialRange);
-                        if (!selectionInfo) {
-                             console.error("[Rewrite Extension] Failed to get selectionInfo for Custom rewrite!");
-                             return; // Prevent calling with undefined
-                        }
-                        await handleRewrite(mesId, swipeId, action, customInstructions, selectionInfo); // Use the locally scoped selectionInfo
-                    } else {
-                        // User cancelled or entered empty instructions
-                    }
                 } else {
-                    // For other rewrite options, get selectionInfo right before the call
-                    // Pass the initially captured range
-                    const selectionInfo = getSelectedTextInfo(mesId, mesTextElement, initialRange); // Get selectionInfo here
+                    const actionName = action.name.trim() || 'this button';
+                    let customInstructions = null;
+                    if (action.askForInstructions) {
+                        customInstructions = await getCustomInstructionsFromPopup(actionName);
+                        if (customInstructions === null || String(customInstructions).trim() === '') {
+                            return;
+                        }
+                    }
+
+                    let runtimeAction = action;
+                    if (action.askForTokenMultiplier) {
+                        const tokenMultiplier = await getTokenMultiplierFromPopup(actionName, action.tokensMult);
+                        if (tokenMultiplier === null) {
+                            return;
+                        }
+                        runtimeAction = { ...action, tokenMultiplierOverride: tokenMultiplier };
+                    }
+
+                    const selectionInfo = getSelectedTextInfo(mesId, mesTextElement, initialRange);
                     if (!selectionInfo) {
                          console.error(`[Rewrite Extension] Failed to get selectionInfo for ${action.name} rewrite!`);
-                         return; // Prevent calling with undefined
+                         return;
                     }
-                    await handleRewrite(mesId, swipeId, action, null, selectionInfo); // Use the locally scoped selectionInfo
+                    await handleRewrite(mesId, swipeId, runtimeAction, customInstructions, selectionInfo);
                 }
             }
         }
@@ -1437,7 +1481,7 @@ async function handleChatCompletionRewrite(mesId, swipeId, action, customInstruc
     // Extension streaming overrides preset streaming
     selectedPresetSettings.stream_openai = extension_settings[extensionName].useStreaming;
 
-    if (extension_settings[extensionName].overrideMaxTokens) {
+    if (extension_settings[extensionName].overrideMaxTokens || action.tokenMultiplierOverride !== undefined) {
         selectedPresetSettings.openai_max_tokens = calculateTargetTokenCount(selectedRawText, action);
     }
 
@@ -1873,7 +1917,9 @@ function calculateTargetTokenCount(selectedText, action) {
     const dynamicTokenMode = extension_settings[extensionName].dynamicTokenMode;
     let result;
 
-    if (useDynamicTokens) {
+    if (Number.isFinite(action.tokenMultiplierOverride)) {
+        result = baseTokenCount * action.tokenMultiplierOverride;
+    } else if (useDynamicTokens) {
         if (dynamicTokenMode === 'additive') {
             result = baseTokenCount + action.tokensAdd;
         } else { // multiplicative
