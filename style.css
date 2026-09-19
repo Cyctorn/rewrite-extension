@@ -246,6 +246,12 @@
     padding: 10px 0;
 }
 
+.rewrite-extension-status {
+    display: block;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
 /* Ensure the tooltip doesn't go off-screen on smaller screens */
 @media (max-width: 768px) {
     .rewrite-extension-settings .tooltip-icon:hover::after {

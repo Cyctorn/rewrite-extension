@@ -21,6 +21,10 @@ import { getRegexedString, regex_placement } from '../../regex/engine.js'; // Im
 
 const extensionName = "rewrite-extension";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+const extensionVersion = '1.4.2';
+const logPrefix = `[Rewrite Extension ${extensionVersion}]`;
+
+console.info(`${logPrefix} Module loaded from ${import.meta.url}`);
 
 const chatCompletionModelSources = {
     openai: { setting: 'openai_model', selector: '#model_openai_select', label: 'OpenAI' },
@@ -240,14 +244,42 @@ function getAction(actionId) {
     return getActions().find(action => action.id === actionId);
 }
 
+function getDiagnostics() {
+    const settings = extension_settings[extensionName];
+    return {
+        version: extensionVersion,
+        moduleUrl: import.meta.url,
+        settingsPresent: Boolean(settings),
+        actionsIsArray: Array.isArray(settings?.actions),
+        configuredActions: Array.isArray(settings?.actions) ? settings.actions.length : 0,
+        renderedActions: document.querySelectorAll('#rewrite_actions .rewrite-action-card').length,
+        addButtonPresent: Boolean(document.getElementById('add_rewrite_action')),
+    };
+}
+
+function setSettingsStatus(message, isError = false) {
+    const status = document.getElementById('rewrite_extension_status');
+    if (!status) {
+        return;
+    }
+
+    status.textContent = `v${extensionVersion}: ${message}`;
+    status.classList.toggle('failure', isError);
+}
+
+globalThis.getRewriteExtensionDiagnostics = () => {
+    const diagnostics = getDiagnostics();
+    console.table(diagnostics);
+    return diagnostics;
+};
+
 let rewriteMenu = null;
 let lastSelection = null;
 let abortController;
 
 let changeHistory = [];
 
-// Load settings
-function loadSettings() {
+function ensureSettingsState() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
     const settings = extension_settings[extensionName];
 
@@ -259,6 +291,16 @@ function loadSettings() {
     }
 
     const actionsChanged = ensureActions(settings);
+    return { settings, actionsChanged };
+}
+
+// Load settings
+function loadSettings() {
+    const { settings, actionsChanged } = ensureSettingsState();
+    console.info(`${logPrefix} Loading settings`, {
+        actionsVersion: settings.actionsVersion,
+        actionCount: settings.actions.length,
+    });
 
     // Helper function to get a setting with a default value
     const getSetting = (key, defaultValue) => {
@@ -286,6 +328,8 @@ function loadSettings() {
     if (actionsChanged) {
         saveSettingsDebounced();
     }
+
+    console.info(`${logPrefix} Settings rendered`, getDiagnostics());
 }
 
 function saveSettings() {
@@ -629,51 +673,77 @@ function updateTokenSettings() {
 
 // Initialize
 jQuery(async () => {
-    const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html`);
-    $("#extensions_settings2").append(settingsHtml);
+    try {
+        const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html`);
+        const settingsHost = document.getElementById('extensions_settings2');
+        if (!settingsHost) {
+            throw new Error('Settings container #extensions_settings2 was not found.');
+        }
 
-    // Attach handlers before rendering so a settings error cannot leave the controls inert.
-    $("#highlight_duration").on("change", saveSettings);
-    $("#use_streaming").on("change", saveSettings);
-    $("#use_dynamic_tokens, #dynamic_token_mode").on("change", () => {
-        updateTokenSettings();
-        saveSettings();
-    });
-    $("#remove_prefix, #remove_suffix").on("change", saveSettings);
-    $("#override_max_tokens").on("change", saveSettings);
-    $("#apply_regex_on_rewrite").on("change", saveSettings); // Add listener for new checkbox
+        settingsHost.querySelectorAll('.rewrite-extension-settings').forEach(element => element.remove());
+        settingsHost.insertAdjacentHTML('beforeend', settingsHtml);
+        setSettingsStatus('Initializing...');
 
-    $("#rewrite_actions").on("input change", "[data-action-field]", handleActionSettingInput);
-    $("#rewrite_actions").on("click", "[data-action-command]", handleActionCommand);
-    $("#add_rewrite_action").on("click", () => {
-        getActions().push(getDefaultAction());
-        renderActionSettings();
-        saveSettings();
-    });
+        // Attach handlers before rendering so a settings error cannot leave the controls inert.
+        $("#highlight_duration").on("change", saveSettings);
+        $("#use_streaming").on("change", saveSettings);
+        $("#use_dynamic_tokens, #dynamic_token_mode").on("change", () => {
+            updateTokenSettings();
+            saveSettings();
+        });
+        $("#remove_prefix, #remove_suffix").on("change", saveSettings);
+        $("#override_max_tokens").on("change", saveSettings);
+        $("#apply_regex_on_rewrite").on("change", saveSettings); // Add listener for new checkbox
 
-    $("#rewrite_extension_model_select").on("change", () => {
-        updateModelSettings();
-        saveSettings();
-    });
+        $("#rewrite_actions").on("input change", "[data-action-field]", handleActionSettingInput);
+        $("#rewrite_actions").on("click", "[data-action-command]", handleActionCommand);
 
-    loadSettings();
+        const addButton = document.getElementById('add_rewrite_action');
+        if (!addButton) {
+            throw new Error('Add Button control was not found.');
+        }
+        addButton.addEventListener('click', () => {
+            try {
+                ensureSettingsState();
+                getActions().push(getDefaultAction());
+                renderActionSettings();
+                saveSettings();
+                setSettingsStatus(`Ready; ${getActions().length} buttons configured.`);
+                console.info(`${logPrefix} Added button`, getDiagnostics());
+            } catch (error) {
+                console.error(`${logPrefix} Add Button failed`, error);
+                setSettingsStatus(`Add Button failed: ${error.message}`, true);
+            }
+        });
 
-    // Add event listener for SETTINGS_UPDATED
-    eventSource.on(event_types.SETTINGS_UPDATED, async () => {
+        $("#rewrite_extension_model_select").on("change", () => {
+            updateModelSettings();
+            saveSettings();
+        });
+
+        loadSettings();
+
+        // Add event listener for SETTINGS_UPDATED
+        eventSource.on(event_types.SETTINGS_UPDATED, async () => {
+            await populateDropdowns(false);
+        });
+
+        eventSource.on(event_types.CHAT_CHANGED, () => {
+            changeHistory = [];
+            updateUndoButtons();
+        });
+
+        eventSource.on(event_types.MESSAGE_EDITED, (editedMesId) => {
+            removeUndoButton(editedMesId);
+        });
+
         await populateDropdowns(false);
-    });
-
-    eventSource.on(event_types.CHAT_CHANGED, () => {
-        changeHistory = [];
-        updateUndoButtons();
-    });
-
-    eventSource.on(event_types.MESSAGE_EDITED, (editedMesId) => {
-        removeUndoButton(editedMesId);
-    });
-
-    await populateDropdowns(false);
-    updateModelSettings();
+        updateModelSettings();
+        setSettingsStatus(`Ready; ${getActions().length} buttons configured.`);
+    } catch (error) {
+        console.error(`${logPrefix} Settings initialization failed`, error);
+        setSettingsStatus(`Initialization failed: ${error.message}`, true);
+    }
 });
 
 // Initialize the rewrite menu functionality
