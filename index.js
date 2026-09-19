@@ -674,7 +674,7 @@ function updateTokenSettings() {
 // Initialize
 jQuery(async () => {
     try {
-        const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html`);
+        const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html?v=${extensionVersion}`);
         const settingsHost = document.getElementById('extensions_settings2');
         if (!settingsHost) {
             throw new Error('Settings container #extensions_settings2 was not found.');
