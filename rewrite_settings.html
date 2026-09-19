@@ -15,35 +15,6 @@
             </div>
 
             <div id="chat_completion_settings" class="model-specific-settings">
-                <div class="rewrite-extension_block flex-container">
-                    <label for="rewrite_preset">Rewrite Preset:</label>
-                    <span class="tooltip-icon fa-solid fa-circle-question" data-tooltip="To use a simple 'System: prompt', switch to Text Completion. This will always use the preset's max tokens setting."></span>
-                    <select id="rewrite_preset" class="text_pole" data-preset-manager-for="rewrite">
-                        <!-- Options will be populated dynamically -->
-                    </select>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="shorten_preset">Shorten Preset:</label>
-                    <select id="shorten_preset" class="text_pole" data-preset-manager-for="shorten">
-                        <!-- Options will be populated dynamically -->
-                    </select>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="expand_preset">Expand Preset:</label>
-                    <select id="expand_preset" class="text_pole" data-preset-manager-for="expand">
-                        <!-- Options will be populated dynamically -->
-                    </select>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="custom_preset">Custom Preset:</label>
-                    <select id="custom_preset" class="text_pole" data-preset-manager-for="custom">
-                        <!-- Options will be populated dynamically -->
-                    </select>
-                </div>
-
                 <div class="rewrite-extension_block flex-container checkbox-container">
                     <div class="checkbox-label-group">
                         <input type="checkbox" id="override_max_tokens" class="checkbox" checked>
@@ -54,25 +25,7 @@
             </div>
 
             <div id="text_based_settings" class="model-specific-settings" style="display: none;">
-                <div class="rewrite-extension_block flex-container">
-                    <label for="text_rewrite_prompt">Rewrite Prompt:</label>
-                    <textarea id="text_rewrite_prompt" class="text_pole" rows="3" placeholder="Enter rewrite prompt"></textarea>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="text_shorten_prompt">Shorten Prompt:</label>
-                    <textarea id="text_shorten_prompt" class="text_pole" rows="3" placeholder="Enter shorten prompt"></textarea>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="text_expand_prompt">Expand Prompt:</label>
-                    <textarea id="text_expand_prompt" class="text_pole" rows="3" placeholder="Enter expand prompt"></textarea>
-                </div>
-
-                <div class="rewrite-extension_block flex-container">
-                    <label for="text_custom_prompt">Custom Prompt:</label>
-                    <textarea id="text_custom_prompt" class="text_pole" rows="3" placeholder="Enter custom prompt. Use {{custom_instructions}} macro."></textarea>
-                </div>
+                <small>Text Completion prompts are configured separately for each button below.</small>
             </div>
 
             <hr class="sysHR" />
@@ -102,26 +55,6 @@
                 <span class="tooltip-icon fa-solid fa-circle-question" data-tooltip="Adjust token count based on the length of the selected text."></span>
             </div>
 
-            <!-- Token settings -->
-            <div id="static_token_settings">
-                <div class="rewrite-extension_block flex-container">
-                    <label for="rewrite_tokens">Rewrite Tokens:</label>
-                    <input type="number" id="rewrite_tokens" class="text_pole" min="0" value="100">
-                </div>
-                <div class="rewrite-extension_block flex-container">
-                    <label for="shorten_tokens">Shorten Tokens:</label>
-                    <input type="number" id="shorten_tokens" class="text_pole" min="0" value="50">
-                </div>
-                <div class="rewrite-extension_block flex-container">
-                    <label for="expand_tokens">Expand Tokens:</label>
-                    <input type="number" id="expand_tokens" class="text_pole" min="0" value="150">
-                </div>
-                <div class="rewrite-extension_block flex-container">
-                    <label for="custom_tokens">Custom Tokens:</label>
-                    <input type="number" id="custom_tokens" class="text_pole" min="0" value="100">
-                </div>
-            </div>
-
             <div id="dynamic_token_settings" style="display: none;">
                 <div class="rewrite-extension_block flex-container">
                     <label for="dynamic_token_mode">Dynamic Token Mode:</label>
@@ -131,42 +64,18 @@
                         <option value="additive">Additive</option>
                     </select>
                 </div>
-                <div id="additive_settings">
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="rewrite_tokens_add">Rewrite Tokens Difference:</label>
-                        <input type="number" id="rewrite_tokens_add" class="text_pole" value="0">
+            </div>
+
+            <hr class="sysHR" />
+            <div class="rewrite-actions-section">
+                <div class="rewrite-actions-heading">
+                    <div>
+                        <b>Rewrite Buttons</b>
+                        <div><small>Rename, configure, reorder, or add selection-menu buttons.</small></div>
                     </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="shorten_tokens_add">Shorten Tokens Difference:</label>
-                        <input type="number" id="shorten_tokens_add" class="text_pole" value="-20">
-                    </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="expand_tokens_add">Expand Tokens Difference:</label>
-                        <input type="number" id="expand_tokens_add" class="text_pole" value="20">
-                    </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="custom_tokens_add">Custom Tokens Difference:</label>
-                        <input type="number" id="custom_tokens_add" class="text_pole" value="0">
-                    </div>
+                    <button id="add_rewrite_action" type="button" class="menu_button">Add Button</button>
                 </div>
-                <div id="multiplicative_settings">
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="rewrite_tokens_mult">Rewrite Tokens Multiplier:</label>
-                        <input type="number" id="rewrite_tokens_mult" class="text_pole" value="1.0" step="0.1">
-                    </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="shorten_tokens_mult">Shorten Tokens Multiplier:</label>
-                        <input type="number" id="shorten_tokens_mult" class="text_pole" value="0.8" step="0.1">
-                    </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="expand_tokens_mult">Expand Tokens Multiplier:</label>
-                        <input type="number" id="expand_tokens_mult" class="text_pole" value="1.2" step="0.1">
-                    </div>
-                    <div class="rewrite-extension_block flex-container">
-                        <label for="custom_tokens_mult">Custom Tokens Multiplier:</label>
-                        <input type="number" id="custom_tokens_mult" class="text_pole" value="1.0" step="0.1">
-                    </div>
-                </div>
+                <div id="rewrite_actions"></div>
             </div>
 
             <div class="rewrite-extension_block" style="margin-top: 15px;">
@@ -192,37 +101,6 @@
                 <input type="number" id="highlight_duration" class="text_pole" min="0" step="100" value="3000">
             </div>
 
-            <hr class="sysHR" />
-            <div class="rewrite-extension_block flex-container">
-                <div class="inline-drawer">
-                    <div class="inline-drawer-toggle inline-drawer-header">
-                        <b>Button visibility</b>
-                        <div class="inline-drawer-icon fa-solid fa-circle-chevron-up up"></div>
-                    </div>
-                    <div class="inline-drawer-content" style="display: none;">
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="show_rewrite" class="checkbox" checked>
-                            <label for="show_rewrite">Show Rewrite</label>
-                        </div>
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="show_shorten" class="checkbox" checked>
-                            <label for="show_shorten">Show Shorten</label>
-                        </div>
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="show_expand" class="checkbox" checked>
-                            <label for="show_expand">Show Expand</label>
-                        </div>
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="show_custom" class="checkbox" checked>
-                            <label for="show_custom">Show Custom</label>
-                        </div>
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="show_delete" class="checkbox" checked>
-                            <label for="show_delete">Show Delete</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>

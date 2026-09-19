@@ -172,6 +172,80 @@
     width: 100%;
 }
 
+.rewrite-actions-heading,
+.rewrite-action-header,
+.rewrite-action-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rewrite-actions-heading {
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.rewrite-action-card {
+    margin-bottom: 12px;
+    padding: 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 70%, transparent);
+}
+
+.rewrite-action-header {
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.rewrite-action-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.rewrite-action-visible {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    white-space: nowrap;
+}
+
+.rewrite-action-setting {
+    display: grid;
+    grid-template-columns: minmax(9rem, 0.45fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.rewrite-action-setting label {
+    margin: 0;
+}
+
+.rewrite-action-setting textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.rewrite-action-instructions label {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rewrite-action-controls {
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.rewrite-actions-empty {
+    display: block;
+    padding: 10px 0;
+}
+
 /* Ensure the tooltip doesn't go off-screen on smaller screens */
 @media (max-width: 768px) {
     .rewrite-extension-settings .tooltip-icon:hover::after {
@@ -180,5 +254,17 @@
         transform: translateX(-50%);
         top: 100%;
         margin-top: 5px;
+    }
+
+    .rewrite-action-setting {
+        grid-template-columns: 1fr;
+    }
+
+    .rewrite-action-controls {
+        justify-content: stretch;
+    }
+
+    .rewrite-action-controls button {
+        flex: 1;
     }
 }
