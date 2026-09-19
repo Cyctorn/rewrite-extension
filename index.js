@@ -341,7 +341,7 @@ function createActionSettingRow(labelText, control, className = '') {
 }
 
 function populatePresetSelect(select, action) {
-    select.replaceChildren();
+    select.textContent = '';
     if (action.preset && !availablePresetNames.includes(action.preset)) {
         select.appendChild(new Option(`${action.preset} (missing)`, action.preset));
     }
@@ -367,7 +367,7 @@ function renderActionSettings() {
         return;
     }
 
-    container.replaceChildren();
+    container.textContent = '';
     const actions = getActions();
 
     if (actions.length === 0) {
@@ -632,10 +632,7 @@ jQuery(async () => {
     const settingsHtml = await $.get(`${extensionFolderPath}/rewrite_settings.html`);
     $("#extensions_settings2").append(settingsHtml);
 
-    // Initialize local settings before any optional network requests.
-    loadSettings();
-
-    // Add event listeners
+    // Attach handlers before rendering so a settings error cannot leave the controls inert.
     $("#highlight_duration").on("change", saveSettings);
     $("#use_streaming").on("change", saveSettings);
     $("#use_dynamic_tokens, #dynamic_token_mode").on("change", () => {
@@ -658,6 +655,8 @@ jQuery(async () => {
         updateModelSettings();
         saveSettings();
     });
+
+    loadSettings();
 
     // Add event listener for SETTINGS_UPDATED
     eventSource.on(event_types.SETTINGS_UPDATED, async () => {
