@@ -21,7 +21,7 @@ import { getRegexedString, regex_placement } from '../../regex/engine.js'; // Im
 
 const extensionName = "rewrite-extension";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-const extensionVersion = '1.5.0';
+const extensionVersion = '1.5.1';
 const logPrefix = `[Rewrite Extension ${extensionVersion}]`;
 
 console.info(`${logPrefix} Module loaded from ${import.meta.url}`);
@@ -278,7 +278,7 @@ globalThis.getRewriteExtensionDiagnostics = () => {
 };
 
 let rewriteMenu = null;
-let lastSelection = null;
+let selectionProcessTimer = null;
 let abortController;
 
 let changeHistory = [];
@@ -767,14 +767,12 @@ jQuery(async () => {
 initRewriteMenu();
 
 function initRewriteMenu() {
-    // document.addEventListener('mouseup', handleSelectionEnd);
-    // document.addEventListener('touchend', handleSelectionEnd);
     document.addEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('mouseup', handleSelectionEnd);
+    document.addEventListener('touchend', handleSelectionEnd);
     document.addEventListener('mousedown', hideMenuOnOutsideClick);
     document.addEventListener('touchstart', hideMenuOnOutsideClick);
-
-    let chatContainer = document.getElementById('chat');
-    chatContainer.addEventListener('scroll', positionMenu);
+    document.addEventListener('scroll', positionMenu, true);
 
     $('#mes_stop').on('click', handleStopRewrite);
 }
@@ -796,15 +794,18 @@ function handleStopRewrite() {
     }
 }
 
-// function handleSelectionEnd(e) {
-//     if (e.target && e.target.closest('.ctx-menu')) return;
-//     removeRewriteMenu();
-//     setTimeout(processSelection, 50);
-// }
+function scheduleSelectionProcessing(delay = 50) {
+    clearTimeout(selectionProcessTimer);
+    selectionProcessTimer = setTimeout(processSelection, delay);
+}
+
+function handleSelectionEnd(e) {
+    if (e.target instanceof Element && e.target.closest('.ctx-menu')) return;
+    scheduleSelectionProcessing(0);
+}
 
 function handleSelectionChange() {
-    // Use a small timeout to ensure the selection has been updated
-    setTimeout(processSelection, 50);
+    scheduleSelectionProcessing();
 }
 
 function processSelection() {
@@ -813,31 +814,28 @@ function processSelection() {
         return; // Exit the function if chatId is undefined
     }
 
-    let selection = window.getSelection();
-    let selectedText = selection.toString().trim();
+    const selection = window.getSelection();
 
     // Always remove the existing menu first
     removeRewriteMenu();
 
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        return;
+    }
+
+    const selectedText = selection.toString().trim();
     if (selectedText.length > 0) {
-        let range = selection.getRangeAt(0);
+        const range = selection.getRangeAt(0);
 
         // Find the mes_text elements for both start and end of the selection
-        let startMesText = range.startContainer.nodeType === Node.ELEMENT_NODE
-            ? range.startContainer.closest('.mes_text')
-            : range.startContainer.parentElement.closest('.mes_text');
-
-        let endMesText = range.endContainer.nodeType === Node.ELEMENT_NODE
-            ? range.endContainer.closest('.mes_text')
-            : range.endContainer.parentElement.closest('.mes_text');
+        const startMesText = findClosestMesText(range.startContainer);
+        const endMesText = findClosestMesText(range.endContainer);
 
         // Check if both start and end are within the same mes_text element
         if (startMesText && endMesText && startMesText === endMesText) {
             createRewriteMenu();
         }
     }
-
-    lastSelection = selectedText.length > 0 ? selectedText : null;
 }
 
 async function getCustomInstructionsFromPopup(actionName) {
@@ -1099,22 +1097,30 @@ function hideMenuOnOutsideClick(e) {
 function createRewriteMenu() {
     removeRewriteMenu();
 
+    const { actionsChanged } = ensureSettingsState();
+    if (actionsChanged) {
+        saveSettingsDebounced();
+    }
+
+    const visibleActions = getActions().filter(action => action.visible);
+    if (visibleActions.length === 0) {
+        return;
+    }
+
     rewriteMenu = document.createElement('ul');
     rewriteMenu.className = 'list-group ctx-menu';
     rewriteMenu.style.position = 'absolute';
     rewriteMenu.style.zIndex = '1000';
     rewriteMenu.style.position = 'fixed';
 
-    getActions().forEach(action => {
-        if (action.visible) {
-            let li = document.createElement('li');
-            li.className = 'list-group-item ctx-item';
-            li.textContent = action.name.trim() || 'Unnamed button';
-            li.addEventListener('mousedown', handleMenuItemClick);
-            li.addEventListener('touchstart', handleMenuItemClick);
-            li.dataset.actionId = action.id;
-            rewriteMenu.appendChild(li);
-        }
+    visibleActions.forEach(action => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item ctx-item';
+        li.textContent = action.name.trim() || 'Unnamed button';
+        li.addEventListener('mousedown', handleMenuItemClick);
+        li.addEventListener('touchstart', handleMenuItemClick);
+        li.dataset.actionId = action.id;
+        rewriteMenu.appendChild(li);
     });
 
     document.body.appendChild(rewriteMenu);
@@ -1124,9 +1130,14 @@ function createRewriteMenu() {
 function positionMenu() {
     if (!rewriteMenu) return;
 
-    let selection = window.getSelection();
-    let range = selection.getRangeAt(0);
-    let rect = range.getBoundingClientRect();
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+        removeRewriteMenu();
+        return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
 
     // Calculate the menu's position
     let left = rect.left + window.pageXOffset;
