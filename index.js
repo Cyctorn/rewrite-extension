@@ -109,6 +109,13 @@ let changeHistory = [];
 function loadSettings() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
 
+    // Keep the runtime settings in sync with the defaults shown in the UI.
+    for (const [key, value] of Object.entries(defaultSettings)) {
+        if (extension_settings[extensionName][key] === undefined) {
+            extension_settings[extensionName][key] = value;
+        }
+    }
+
     // Helper function to get a setting with a default value
     const getSetting = (key, defaultValue) => {
         return extension_settings[extensionName][key] !== undefined
